@@ -69,9 +69,9 @@ class Server:
 
         if manager_lic != "":
             print("Активируем по ключу...")
-            billmgr.exec("/usr/local/mgr5/sbin/licctl fetch " + mgr + " " + manager_lic)
+            self.exec("/usr/local/mgr5/sbin/licctl fetch " + mgr + " " + manager_lic)
             time.sleep(5)
-            lic_info = billmgr.exec("/usr/local/mgr5/sbin/licctl info " + mgr)
+            lic_info = self.exec("/usr/local/mgr5/sbin/licctl info " + mgr)
             lic_id = lic_info.split("\n")[0]
             if lic_id == "ID: 0":
                 print("Всё ещё нет лицензии, получаем триал")
