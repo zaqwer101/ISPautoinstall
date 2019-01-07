@@ -7,6 +7,9 @@ install_script_url = "http://cdn.ispsystem.com/install.sh"
 
 
 class Server:
+    installed_panels = []
+    mysql_password = ""
+
     def __init__(self, ip, password):
         self.ip = ip
         self.password = password
@@ -71,10 +74,10 @@ class Server:
         else:
             email = input("Введите ваш e-mail: ")
             out = self.mgrctl_exec("billmgr",
-                                "licenseorder agreement=on clicked_button=next email=" + email + " period=1 product=" + str(
-                                    product) + " " +
-                                "sok=ok "
-                                "type=trial out=text | grep -v \"password\"")
+                                   "licenseorder agreement=on clicked_button=next email=" + email + " period=1 product=" + str(
+                                       product) + " " +
+                                   "sok=ok "
+                                   "type=trial out=text | grep -v \"password\"")
 
             if "after_payment_info=" in out:  # если такого email`а не было в нашем биллинге
                 manager_lic_key = input("На указанный e-mail было отправлено письмо с ключом, введите его: ")
@@ -83,18 +86,24 @@ class Server:
                 print("На my.ispsystem.com уже существует такой пользователь")
                 password = getpass("Введите ваш пароль от my.ispsystem.com для данного пользователя: ")
                 self.mgrctl_exec("billmgr",
-                              "licenseorder email=" + email + " agreement=on product=" + str(
-                                  product) + " period=1 password=" + password + " type=trial | grep -v \"password\"")
-                manager_lic_key = input("На указанный e-mail было отправлено письмо с активационным ключом, введите его: ")
+                                 "licenseorder email=" + email + " agreement=on product=" + str(
+                                     product) + " period=1 password=" + password + " type=trial | grep -v \"password\"")
+                manager_lic_key = input(
+                    "На указанный e-mail было отправлено письмо с активационным ключом, введите его: ")
                 self.exec("/usr/local/mgr5/sbin/licctl fetch billmgr " + manager_lic_key)
 
         print("BILLmanager установлен")
 
+    def get_installed_panels(self):
+        for name in self.exec("/usr/local/mgr5/sbin/mgrctl mgr").split("\n")[0:-1]:
+            self.installed_panels.append(name.split("=")[1])
 
-billmgr_ip = "192.168.1.6"
+billmgr_ip = "192.168.1.7"
 billmgr_pass = "qweasdzxc"
-billmgr_version = "billmanager-advanced"
+billmgr_version = "advanced"
 
 billmgr = Server(billmgr_ip, billmgr_pass)
 
-billmgr.install_billmanager("billmanager-advanced")
+billmgr.install_billmanager(billmgr_version)
+billmgr.get_installed_panels()
+print(billmgr.installed_panels)
