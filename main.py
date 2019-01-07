@@ -11,7 +11,7 @@ class Server:
     mysql_password = ""
 
     def log(self, line):
-        # print(line.strip("\n"))
+#        print(line.strip("\n"))
         pass
 
     def __init__(self, ip, password):
@@ -27,7 +27,7 @@ class Server:
         for line in stdout:
             _out = _out + line
             self.log(line)
-            self.log("---------------------------------------")
+        self.log("---------------------------------------")
         return _out
 
     def mgrctl_exec(self, manager, params):
@@ -99,6 +99,59 @@ class Server:
 
         print("BILLmanager установлен")
 
+    def billmanager_preconfigure(self):
+        if self.mysql_exec("billmgr", "select * from project;") != "":
+            print("Этот BILLmanager уже сконфигурирован")
+            return
+        print("Начинаем преконфигурацию BILLmanager")
+        lang = "ru"
+        country_id = ""
+        currency_id = ""
+        profiletype = ""
+        billurl = "https://" + self.exec("/usr/local/mgr5/sbin/ihttpd").split(" ")[1].split("\n")[0]
+
+
+        while country_id == "":
+            country = input("Введите код страны в формате ISO2: ").lower()
+            country_id = self.mysql_exec("billmgr", "select id from country where iso2='" + country + "';").strip("\n")
+            if country_id == "":
+                print("Некорректный код страны")
+
+        while profiletype == "":
+            profiletype = input("Выберите юридический статус: \n"
+                            "1 - Физическое лицо\n"
+                            "2 - Юридическое лицо\n"
+                            "3 - Индивидуальный предприниматель\n"
+                            "Выбор (1-3): ")
+            try:
+                profiletype = int(profiletype)
+                if type(profiletype) is not int or profiletype < 1 or profiletype > 3:
+                    profiletype = ""
+                    raise Exception("Некорректный тип")
+                break
+            except:
+                profiletype = ""
+
+
+        provider_name = input("Наименование провайдера: ")
+
+        while currency_id == "":
+            currency = input("Код валюты в формате ISO: ").upper()
+            currency_id = self.mysql_exec("billmgr", "select id from currency where ISO='" + currency + "';").strip("\n")
+            if currency_id == "":
+                print("Некорректный код валюты")
+
+
+        request = "initialsettings.project" + " profiletype=" + str(profiletype) + " project_billurl=" + billurl + " currency=" + str(currency_id) + " country=" + str(country_id) + " project_name='" + provider_name + "' clicked_button=finish sok=ok"
+
+
+        out = self.mgrctl_exec("billmgr", request)
+
+        if out.split(" ")[0] != "ERROR":
+            print("Настройка завершена")
+        else:
+            print(out)
+
     def get_installed_panels(self):
         for name in self.exec("/usr/local/mgr5/sbin/mgrctl mgr").split("\n")[0:-1]:
             self.installed_panels.append(name.split("=")[1])
@@ -112,10 +165,11 @@ class Server:
     def mysql_exec(self, db, command):
         if self.mysql_password == "":
             self.get_mysql_password()
-        sql = "mysql -ucoremgr -p" + self.mysql_password + " -e \"" + command + "\" " + db
+        sql = "mysql --skip-column-names -ucoremgr -p" + self.mysql_password + " -e \"" + command + "\" " + db + "|cat -"
         return self.exec(sql)
 
-billmgr_ip = "192.168.1.8"
+
+billmgr_ip = "192.168.1.15"
 billmgr_pass = "qweasdzxc"
 billmgr_version = "advanced"
 
@@ -123,5 +177,5 @@ billmgr = Server(billmgr_ip, billmgr_pass)
 
 #billmgr.install_billmanager(billmgr_version)
 
-billmgr.get_installed_panels()
-print(billmgr.mysql_exec("billmgr", "select * from user\G"))
+billmgr.billmanager_preconfigure()
+# print(billmgr.mysql_exec("billmgr", "select id from country where iso2='af';"))
