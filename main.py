@@ -10,6 +10,10 @@ class Server:
     installed_panels = []
     mysql_password = ""
 
+    def log(self, line):
+        # print(line.strip("\n"))
+        pass
+
     def __init__(self, ip, password):
         self.ip = ip
         self.password = password
@@ -22,8 +26,8 @@ class Server:
         _out = ""
         for line in stdout:
             _out = _out + line
-            print(line.strip("\n"))
-        print("---------------------------------------")
+            self.log(line)
+            self.log("---------------------------------------")
         return _out
 
     def mgrctl_exec(self, manager, params):
@@ -50,18 +54,18 @@ class Server:
 
         manager_lic_key = input(
             "Введите ключ лицензии, если необходима ручная активация по ключу (например, если сервер находится за NAT), "
-            "в противном случае оставьте поле пустым")
+            "в противном случае оставьте поле пустым: ")
         self.disable_selinux()
         print("Устанавливаем wget и скачиваем скрипт... ")
         self.exec("yum -y install wget && wget http://cdn.ispsystem.com/install.sh")
-        print("Запускаем скрипт установки... ")
+        print("Устанавливаем панель... ")
         self.exec("sh install.sh --release beta billmanager-" + edition.lower())
 
         print("Получаем лицензию для установленной панели... ")
         lic_info = self.exec("/usr/local/mgr5/sbin/licctl info billmgr")
         lic_id = lic_info.split("ID: ")[1].split('\n')[0]
         if lic_id == "0":
-            print("Нет лицензии")
+            print("Автоматически активировать не удалось")
 
         if manager_lic_key != "":
             print("Активируем по ключу...")
@@ -70,7 +74,8 @@ class Server:
             lic_info = self.exec("/usr/local/mgr5/sbin/licctl info " + mgr)
             lic_id = lic_info.split("\n")[0]
             if lic_id == "ID: 0":
-                print("Всё ещё нет лицензии, получаем триал")
+                print("Ключ не подошёл, ой!")
+                exit(1)
         else:
             email = input("Введите ваш e-mail: ")
             out = self.mgrctl_exec("billmgr",
@@ -97,13 +102,26 @@ class Server:
     def get_installed_panels(self):
         for name in self.exec("/usr/local/mgr5/sbin/mgrctl mgr").split("\n")[0:-1]:
             self.installed_panels.append(name.split("=")[1])
+        return self.installed_panels
 
-billmgr_ip = "192.168.1.7"
+    def get_mysql_password(self):
+        file = self.exec("cat /usr/local/mgr5/etc/my.cnf")
+        self.mysql_password = file.split("password = ")[1].strip("\n")
+        return self.mysql_password
+
+    def mysql_exec(self, db, command):
+        if self.mysql_password == "":
+            self.get_mysql_password()
+        sql = "mysql -ucoremgr -p" + self.mysql_password + " -e \"" + command + "\" " + db
+        return self.exec(sql)
+
+billmgr_ip = "192.168.1.8"
 billmgr_pass = "qweasdzxc"
 billmgr_version = "advanced"
 
 billmgr = Server(billmgr_ip, billmgr_pass)
 
-billmgr.install_billmanager(billmgr_version)
+#billmgr.install_billmanager(billmgr_version)
+
 billmgr.get_installed_panels()
-print(billmgr.installed_panels)
+print(billmgr.mysql_exec("billmgr", "select * from user\G"))
