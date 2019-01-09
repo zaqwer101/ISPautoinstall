@@ -9,9 +9,12 @@ install_script_url = "http://cdn.ispsystem.com/install.sh"
 class Server:
     installed_panels = []
     mysql_password = ""
+    user_email = ""
+    user_password = ""
+
 
     def log(self, line):
-#        print(line.strip("\n"))
+        #        print(line.strip("\n"))
         pass
 
     def __init__(self, ip, password):
@@ -77,22 +80,24 @@ class Server:
                 print("Ключ не подошёл, ой!")
                 exit(1)
         else:
-            email = input("Введите ваш e-mail: ")
+            if self.user_email == "":
+                self.user_email = input("Введите ваш e-mail: ")
             out = self.mgrctl_exec("billmgr",
-                                   "licenseorder agreement=on clicked_button=next email=" + email + " period=1 product=" + str(
+                                   "licenseorder agreement=on clicked_button=next email=" + self.user_email + " period=1 product=" + str(
                                        product) + " " +
                                    "sok=ok "
                                    "type=trial out=text | grep -v \"password\"")
 
             if "after_payment_info=" in out:  # если такого email`а не было в нашем биллинге
-                manager_lic_key = input("На указанный e-mail было отправлено письмо с ключом, введите его: ")
+                manager_lic_key = input("На e-mail " + self.user_email + " было отправлено письмо с ключом, введите его: ")
                 self.exec("/usr/local/mgr5/sbin/licctl fetch billmgr " + manager_lic_key)
             else:  # если уже есть
-                print("На my.ispsystem.com уже существует такой пользователь")
-                password = getpass("Введите ваш пароль от my.ispsystem.com для данного пользователя: ")
+                print("На my.ispsystem.com уже существует пользователь " + self.user_email)
+                if self.user_password == "":
+                    self.user_password = getpass("Введите ваш пароль от my.ispsystem.com для данного пользователя: ")
                 self.mgrctl_exec("billmgr",
-                                 "licenseorder email=" + email + " agreement=on product=" + str(
-                                     product) + " period=1 password=" + password + " type=trial | grep -v \"password\"")
+                                 "licenseorder email=" + self.user_email + " agreement=on product=" + str(
+                                     product) + " period=1 password=" + self.user_password + " type=trial | grep -v \"password\"")
                 manager_lic_key = input(
                     "На указанный e-mail было отправлено письмо с активационным ключом, введите его: ")
                 self.exec("/usr/local/mgr5/sbin/licctl fetch billmgr " + manager_lic_key)
@@ -110,7 +115,6 @@ class Server:
         profiletype = ""
         billurl = "https://" + self.exec("/usr/local/mgr5/sbin/ihttpd").split(" ")[1].split("\n")[0]
 
-
         while country_id == "":
             country = input("Введите код страны в формате ISO2: ").lower()
             country_id = self.mysql_exec("billmgr", "select id from country where iso2='" + country + "';").strip("\n")
@@ -119,10 +123,10 @@ class Server:
 
         while profiletype == "":
             profiletype = input("Выберите юридический статус: \n"
-                            "1 - Физическое лицо\n"
-                            "2 - Юридическое лицо\n"
-                            "3 - Индивидуальный предприниматель\n"
-                            "Выбор (1-3): ")
+                                "1 - Физическое лицо\n"
+                                "2 - Юридическое лицо\n"
+                                "3 - Индивидуальный предприниматель\n"
+                                "Выбор (1-3): ")
             try:
                 profiletype = int(profiletype)
                 if type(profiletype) is not int or profiletype < 1 or profiletype > 3:
@@ -132,18 +136,18 @@ class Server:
             except:
                 profiletype = ""
 
-
         provider_name = input("Наименование провайдера: ")
 
         while currency_id == "":
             currency = input("Код валюты в формате ISO: ").upper()
-            currency_id = self.mysql_exec("billmgr", "select id from currency where ISO='" + currency + "';").strip("\n")
+            currency_id = self.mysql_exec("billmgr", "select id from currency where ISO='" + currency + "';").strip(
+                "\n")
             if currency_id == "":
                 print("Некорректный код валюты")
 
-
-        request = "initialsettings.project" + " profiletype=" + str(profiletype) + " project_billurl=" + billurl + " currency=" + str(currency_id) + " country=" + str(country_id) + " project_name='" + provider_name + "' clicked_button=finish sok=ok"
-
+        request = "initialsettings.project" + " profiletype=" + str(
+            profiletype) + " project_billurl=" + billurl + " currency=" + str(currency_id) + " country=" + str(
+            country_id) + " project_name='" + provider_name + "' clicked_button=finish sok=ok"
 
         out = self.mgrctl_exec("billmgr", request)
 
@@ -175,7 +179,6 @@ billmgr_version = "advanced"
 
 billmgr = Server(billmgr_ip, billmgr_pass)
 
-#billmgr.install_billmanager(billmgr_version)
+# billmgr.install_billmanager(billmgr_version)
 
 billmgr.billmanager_preconfigure()
-# print(billmgr.mysql_exec("billmgr", "select id from country where iso2='af';"))
