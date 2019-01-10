@@ -1,3 +1,4 @@
+import random
 import time
 
 import paramiko
@@ -6,12 +7,25 @@ from getpass import getpass
 install_script_url = "http://cdn.ispsystem.com/install.sh"
 
 
+def generate_password():
+    pas = ''
+    for x in range(10):  # Количество символов (16)
+        pas = pas + random.choice(list('1234567890abcdefghigklmnopqrstuvyxwzABCDEFGHIGKLMNOPQRSTUVYXWZ'))
+    return pas
+
+
 class Server:
     installed_panels = []
     mysql_password = ""
     user_email = ""
     user_password = ""
 
+    def install_panel(self, manager):
+        self.disable_selinux()
+        print("Устанавливаем wget и скачиваем скрипт... ")
+        self.exec("yum -y install wget && wget http://cdn.ispsystem.com/install.sh -O install.sh")
+        print("Устанавливаем панель... ")
+        self.exec("sh install.sh --release beta " + manager)
 
     def log(self, line):
         #        print(line.strip("\n"))
@@ -49,26 +63,23 @@ class Server:
                 exit(0)
 
     def install_billmanager(self, edition):
+        if "billmgr" in self.get_installed_panels():
+            print("BILLmanager уже установлен")
+            return
         product = 5577
         mgr = "billmgr"
         if edition.lower() != "advanced":
             print("Эта версия ещё не поддерживается")
             exit(0)
-
-        manager_lic_key = input(
-            "Введите ключ лицензии, если необходима ручная активация по ключу (например, если сервер находится за NAT), "
-            "в противном случае оставьте поле пустым: ")
-        self.disable_selinux()
-        print("Устанавливаем wget и скачиваем скрипт... ")
-        self.exec("yum -y install wget && wget http://cdn.ispsystem.com/install.sh")
-        print("Устанавливаем панель... ")
-        self.exec("sh install.sh --release beta billmanager-" + edition.lower())
-
+        self.install_panel("billmanager-" + edition.lower())
         print("Получаем лицензию для установленной панели... ")
         lic_info = self.exec("/usr/local/mgr5/sbin/licctl info billmgr")
         lic_id = lic_info.split("ID: ")[1].split('\n')[0]
         if lic_id == "0":
-            print("Автоматически активировать не удалось")
+            print(" Автоматически активировать не удалось")
+
+        manager_lic_key = input(
+            "Введите ключ лицензии, если у вас имеется лицензия на панель: ")
 
         if manager_lic_key != "":
             print("Активируем по ключу...")
@@ -103,6 +114,22 @@ class Server:
                 self.exec("/usr/local/mgr5/sbin/licctl fetch billmgr " + manager_lic_key)
 
         print("BILLmanager установлен")
+
+    def install_ipmanager(self):
+        if "ipmgr" in self.get_installed_panels():
+            print("IPmanager уже установлен")
+        else:
+            self.install_panel("ipmanager")
+        if len(self.mgrctl_exec("ipmgr", "user").split("\n")) > 2:
+            print("В панели уже существуют пользователи, автоматическая конфигурация невозможна")
+            return
+
+        self.ipmanager_user_password = generate_password()
+        self.mgrctl_exec("ipmgr", "user.edit passwd=" + self.ipmanager_user_password + " confirm=" + self.ipmanager_user_password +
+                         " sok=ok name=billmgr")
+        # TODO
+
+
 
     def billmanager_preconfigure(self):
         if self.mysql_exec("billmgr", "select * from project;") != "":
@@ -157,6 +184,7 @@ class Server:
             print(out)
 
     def get_installed_panels(self):
+        self.installed_panels = []
         for name in self.exec("/usr/local/mgr5/sbin/mgrctl mgr").split("\n")[0:-1]:
             self.installed_panels.append(name.split("=")[1])
         return self.installed_panels
@@ -173,12 +201,14 @@ class Server:
         return self.exec(sql)
 
 
-billmgr_ip = "192.168.1.15"
-billmgr_pass = "qweasdzxc"
+billmgr_ip = "172.31.223.23"
+billmgr_pass = "H6n6J6j6"
 billmgr_version = "advanced"
 
 billmgr = Server(billmgr_ip, billmgr_pass)
 
-# billmgr.install_billmanager(billmgr_version)
+# billmgr.install_billmanager("advanced")
+# billmgr.install_ipmanager()
+# print(billmgr.get_installed_panels())
 
-billmgr.billmanager_preconfigure()
+billmgr.install_ipmanager()
